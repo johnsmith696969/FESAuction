@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+auction.db
+.env
+node_modules/
+frontend/dist/
+frontend/.vite/
