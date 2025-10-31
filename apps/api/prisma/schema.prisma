@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+}
+
+enum AccountType {
+  FREE
+  INDIVIDUAL_SELLER
+  DEALER
+  PRO_DEALER
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  passwordHash String
+  accountType  AccountType @default(FREE)
+  staffRole    Role?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  dealer             Dealer?
+  listings           Listing[]
+  bids               Bid[]
+  subscriptions      Subscription[]
+  BidderVerification BidderVerification?
+  Favorite           Favorite[]
+
+  messagesSent       Message[]           @relation("UserMessages")
+  threadParticipants ThreadParticipant[]
+}
+
+model Dealer {
+  id       String    @id @default(cuid())
+  name     String
+  userId   String    @unique
+  user     User      @relation(fields: [userId], references: [id])
+  plan     String?
+  logoUrl  String?
+  about    String?
+  listings Listing[]
+}
+
+model Listing {
+  id          String        @id @default(cuid())
+  type        ListingType
+  title       String
+  description String
+  category    String
+  make        String?
+  model       String?
+  year        Int?
+  hours       Int?
+  stockNumber String?
+  priceCents  Int?
+  location    String?
+  status      ListingStatus @default(DRAFT)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  dealerId    String?
+  dealer      Dealer?       @relation(fields: [dealerId], references: [id])
+  media       Media[]
+  auction     Auction?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  Favorite    Favorite[]
+
+  threads MessageThread[]
+}
+
+enum ListingType {
+  CLASSIFIED
+  AUCTION
+  AUCTION_BIN
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING
+  LIVE
+  SOLD
+  EXPIRED
+}
+
+model Media {
+  id        String    @id @default(cuid())
+  listingId String
+  url       String
+  kind      MediaKind
+  position  Int       @default(0)
+  listing   Listing   @relation(fields: [listingId], references: [id])
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+model Auction {
+  id           String        @id @default(cuid())
+  listingId    String        @unique
+  startAt      DateTime
+  endAt        DateTime
+  reserveCents Int?
+  buyNowCents  Int?
+  softCloseSec Int           @default(120)
+  status       AuctionStatus @default(SCHEDULED)
+  listing      Listing       @relation(fields: [listingId], references: [id])
+  bids         Bid[]
+}
+
+enum AuctionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+model Bid {
+  id            String   @id @default(cuid())
+  auctionId     String
+  userId        String
+  amountCents   Int
+  proxyMaxCents Int?
+  createdAt     DateTime @default(now())
+  auction       Auction  @relation(fields: [auctionId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  plan      String
+  status    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BidderVerification {
+  id        String             @id @default(cuid())
+  userId    String             @unique
+  user      User               @relation(fields: [userId], references: [id])
+  phone     String
+  idLast4   String? // last 4 of DL/ID (placeholder for KYC-lite)
+  status    VerificationStatus @default(PENDING)
+  note      String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model Favorite {
+  userId    String
+  listingId String
+  user      User     @relation(fields: [userId], references: [id])
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@id([userId, listingId])
+}
+
+model MessageThread {
+  id        String   @id @default(cuid())
+  subject   String
+  listingId String?
+  listing   Listing? @relation(fields: [listingId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ThreadParticipant[]
+  Message      Message[]
+}
+
+model ThreadParticipant {
+  id         String    @id @default(cuid())
+  threadId   String
+  userId     String
+  lastReadAt DateTime?
+
+  thread MessageThread @relation(fields: [threadId], references: [id])
+  user   User          @relation(fields: [userId], references: [id])
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  senderId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id])
+  sender User          @relation("UserMessages", fields: [senderId], references: [id])
+
+  @@index([threadId, createdAt])
+}
